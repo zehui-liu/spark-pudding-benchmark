@@ -1,0 +1,54 @@
+job:
+  mode: sync
+  strategy: full
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-14-iceberg-full-refresh
+  master: local[2]
+  deployMode: client
+  describe: CSV to Iceberg full refresh
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: limit-transform
+  id: limit-rows
+  dependencies:
+  - source-1
+  config:
+    limit: ${E2E14_LIMIT}
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/iceberg
+sink:
+- type: iceberg-sink
+  id: sink-1
+  dependency: limit-rows
+  config:
+    table: pudding_test.e2e14_orders
+  catalog: iceberg_lake

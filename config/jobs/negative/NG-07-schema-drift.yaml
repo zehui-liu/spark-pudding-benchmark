@@ -1,0 +1,54 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-07-schema-drift
+  master: local[2]
+  deployMode: client
+  describe: a missing contract column must fail and name the column
+  config:
+    spark.ui.enabled: 'false'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/e2e03_orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: schema-contract-transform
+  id: contracted
+  dependencies: [source-1]
+  config:
+    columns:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+      missing_col: string
+    allowExtraColumns: true
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: contracted
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

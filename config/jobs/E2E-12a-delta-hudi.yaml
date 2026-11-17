@@ -1,0 +1,47 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-12a-delta-hudi
+  master: local[2]
+  deployMode: client
+  describe: add two rows and update one row in the Hudi source table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+source:
+- type: file-common-source
+  id: delta
+  config:
+    path: ${PUDDING_TEST_DATA}/e2e12_delta.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: delta
+  config:
+    table: e2e12a_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12a/hudi/orders
+    operation: upsert
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    mode: append

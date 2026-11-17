@@ -1,0 +1,58 @@
+job:
+  mode: sync
+  strategy: full
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-14-paimon-full-refresh
+  master: local[2]
+  deployMode: client
+  describe: CSV to Paimon full refresh
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: limit-transform
+  id: limit-rows
+  dependencies:
+  - source-1
+  config:
+    limit: ${E2E14_LIMIT}
+catalog:
+- name: paimon_lake
+  type: paimon
+  properties:
+    warehouse: ${PUDDING_TEST_ROOT}/results/state/e2e-14/paimon
+    metastore: filesystem
+sink:
+- type: paimon-sink
+  id: sink-1
+  dependency: limit-rows
+  config:
+    table: pudding_test.e2e14_orders
+    primaryKey:
+    - order_id
+    bucket: 1
+    allowNonAtomicReplace: true
+  catalog: paimon_lake

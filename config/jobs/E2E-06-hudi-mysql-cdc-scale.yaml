@@ -1,0 +1,60 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-06-hudi-cdc-scale
+  master: local[2]
+  deployMode: client
+  describe: 10M-row MySQL CDC snapshot bulk insert into Hudi
+  trigger: 'processing-time: 10 seconds'
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 8g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+source:
+- type: mysql-cdc-source
+  id: source-1
+  config:
+    url: ${MYSQL_URL}
+    user: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    database: source_db
+    table: orders
+    schema: order_id bigint, customer_id bigint, amount decimal(12,2), status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '200000'
+    options:
+      database.allowPublicKeyRetrieval: 'true'
+transform:
+- type: column-transform
+  id: business-columns
+  dependencies: [source-1]
+  config:
+    fields:
+    - order_id
+    - customer_id
+    - amount
+    - status
+    - city
+    - order_time
+    - updated_at
+    - payload
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: business-columns
+  config:
+    table: e2e06_scale_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-06-scale/hudi/orders
+    operation: upsert
+    options:
+      hoodie.write.markers.type: DIRECT
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    mode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-06-scale/checkpoint
+    checkpointRetention: keep

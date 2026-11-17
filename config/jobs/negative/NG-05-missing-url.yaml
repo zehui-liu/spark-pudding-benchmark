@@ -1,0 +1,25 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-05-missing-url
+  master: local[2]
+  deployMode: client
+  describe: missing required URL; the error must name the key, not the password value
+  config:
+    spark.ui.enabled: 'false'
+source:
+- type: jdbc-source
+  id: source-1
+  config:
+    table: public.orders
+    user: pudding
+    password: NG05-SHOULD-NOT-LEAK
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

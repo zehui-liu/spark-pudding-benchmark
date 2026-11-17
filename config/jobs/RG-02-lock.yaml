@@ -1,0 +1,38 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: rg-02-incremental-lock
+  master: local[2]
+  deployMode: client
+  describe: two concurrent incremental jobs contend for one state lock
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: jdbc-source
+  id: orders_source
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.orders_lock
+    cursorField: updated_at
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      statePath: ${PUDDING_TEST_ROOT}/results/state/rg-02
+sink:
+- type: jdbc-sink
+  id: orders_target
+  dependency: orders_source
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.rg02_orders

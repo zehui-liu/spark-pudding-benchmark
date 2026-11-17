@@ -1,0 +1,40 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-06-kafka-source smoke
+  master: local[2]
+  deployMode: client
+  describe: kafka-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-smoke
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+    options:
+      startingOffsets: earliest
+      endingOffsets: latest
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite

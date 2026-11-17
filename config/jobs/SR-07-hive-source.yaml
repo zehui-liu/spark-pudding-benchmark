@@ -1,0 +1,29 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-07-hive-source smoke
+  master: local[2]
+  deployMode: client
+  describe: hive-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.sql.catalogImplementation: hive
+    spark.sql.warehouse.dir: ${PUDDING_TEST_ROOT}/data/hive/warehouse
+    spark.hadoop.javax.jdo.option.ConnectionURL: jdbc:derby:;databaseName=${PUDDING_TEST_ROOT}/data/hive/metastore_db;create=true
+source:
+- type: hive-source
+  id: source-1
+  config:
+    table: default.pudding_orders_hive
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite

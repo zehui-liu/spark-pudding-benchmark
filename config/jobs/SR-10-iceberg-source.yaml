@@ -1,0 +1,34 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-10-iceberg-source smoke
+  master: local[2]
+  deployMode: client
+  describe: iceberg-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: iceberg-source
+  id: source-1
+  catalog: iceberg_lake
+  config:
+    table: pudding_test.orders
+    filterExpr: order_id <= 10000
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/iceberg

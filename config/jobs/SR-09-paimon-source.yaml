@@ -1,0 +1,35 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-09-paimon-source smoke
+  master: local[2]
+  deployMode: client
+  describe: paimon-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: paimon-source
+  id: source-1
+  catalog: paimon_lake
+  config:
+    table: pudding_test.orders
+    scanMode: latest-full
+    filterExpr: order_id <= 10000
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite
+catalog:
+- name: paimon_lake
+  type: paimon
+  properties:
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/paimon
+    metastore: filesystem

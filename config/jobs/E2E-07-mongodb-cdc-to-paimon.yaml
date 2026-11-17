@@ -1,0 +1,40 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-07-mongodb-cdc-to-paimon
+  master: local[2]
+  deployMode: client
+  describe: MongoDB change stream into a Paimon table keyed by _id
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 2 seconds'
+source:
+- type: mongodb-cdc-source
+  id: source-1
+  config:
+    uri: ${MONGO_URI}
+    database: source_db
+    collection: orders_smoke
+    schema: _id string, order_id bigint, customer_id bigint, amount double, status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '2000'
+sink:
+- type: paimon-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${PUDDING_TEST_ROOT}/results/state/e2e-07/paimon/pudding_test.db/e2e07_orders
+    primaryKey:
+    - _id
+    bucket: 1
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-07/checkpoint
+    checkpointRetention: keep
+    cdcOpColumn: __op
+    cdcOrderFields:
+    - _cdc_timestamp
+    - _cdc_sequence

@@ -1,0 +1,44 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: rg-06-timeout-keep
+  master: local[2]
+  deployMode: client
+  describe: A timed-out or externally stopped finite run keeps its checkpoint
+  trigger: available-now
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '8'
+    spark.driver.memory: 4g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${RG06_INPUT}
+    fileType: csv
+    streamRead: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    outputMode: append
+    checkpointLocation: ${RG06_CHECKPOINT}
+    checkpointRetention: delete-on-success
+    timeoutMs: ${RG06_TIMEOUT_MS}

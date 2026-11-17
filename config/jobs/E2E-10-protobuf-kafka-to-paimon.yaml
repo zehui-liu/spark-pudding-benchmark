@@ -1,0 +1,48 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-10-protobuf-kafka-to-paimon
+  master: local[2]
+  deployMode: client
+  describe: Kafka Protobuf with Schema Registry into a Paimon table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 2 seconds'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-protobuf
+    valueFormat: protobuf
+    valueSchema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: string
+      updated_at: string
+      payload: string
+    schemaRegistry:
+      url: ${SCHEMA_REGISTRY_URL}
+      subject: orders-protobuf-value
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '5000'
+sink:
+- type: paimon-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${PUDDING_TEST_ROOT}/results/state/e2e-10/protobuf/pudding_test.db/e2e10_protobuf_orders
+    primaryKey:
+    - order_id
+    bucket: 1
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-10/protobuf-checkpoint
+    checkpointRetention: keep

@@ -1,0 +1,30 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-13-mongo-roundtrip-source
+  master: local[2]
+  deployMode: client
+  describe: read back the collection written by the MongoDB sink
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: mongodb-source
+  id: source-1
+  config:
+    uri: ${MONGO_URI}
+    database: source_db
+    collection: sk05_orders
+    options:
+      readPreference.name: primary
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

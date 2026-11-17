@@ -1,0 +1,71 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-01-transform-chain
+  master: local[2]
+  deployMode: client
+  describe: CSV to filter, column, aggregate, limit and file sink
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: orders
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: filter-transform
+  id: expensive_orders
+  dependencies: [orders]
+  config:
+    condition: amount >= 100
+    numPartitions: 2
+- type: column-transform
+  id: projected
+  dependencies: [expensive_orders]
+  config:
+    fields:
+    - order_id
+    - name: city_name
+      source: city
+      type: string
+    - amount
+- type: aggregate-transform
+  id: by_city
+  dependencies: [projected]
+  config:
+    groupBy: [city_name]
+    aggregations:
+      order_count: count(*)
+      total_amount: sum(amount)
+- type: limit-transform
+  id: top_rows
+  dependencies: [by_city]
+  config:
+    limit: 10
+sink:
+- type: file-sink
+  id: result
+  dependency: top_rows
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

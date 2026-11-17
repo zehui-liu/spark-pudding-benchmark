@@ -1,0 +1,46 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-08-postgres-cdc-to-jdbc
+  master: local[2]
+  deployMode: client
+  describe: PostgreSQL logical decoding into JDBC with delete and upsert in one transaction
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 5 seconds'
+source:
+- type: postgres-cdc-source
+  id: source-1
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    database: source_db
+    databaseSchema: public
+    table: orders_smoke
+    schema: order_id bigint, customer_id bigint, amount decimal(12,2), status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '1000'
+sink:
+- type: jdbc-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.e2e08_orders
+    driver: org.postgresql.Driver
+    recordKeyFields:
+    - order_id
+    cdcOpColumn: __op
+    cdcOrderFields:
+    - _cdc_timestamp
+    - _cdc_sequence
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-08/checkpoint
+    checkpointRetention: keep

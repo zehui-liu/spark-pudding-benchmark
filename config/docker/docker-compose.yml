@@ -1,0 +1,344 @@
+# Keep the original project name so existing containers and volumes survive the
+# pudding-test -> spark-pudding-benchmark directory rename.
+name: pudding-test
+
+# Start only the profiles a test needs, for example:
+#   docker compose --profile relational up -d --wait
+#   docker compose --profile streaming up -d --wait
+#   docker compose --profile search up -d --wait
+#   docker compose --profile infra up -d --wait
+#
+# The profiles are independent so a 4-8 GiB Docker VM can run them sequentially.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["relational"]
+    environment:
+      POSTGRES_USER: ${PG_USER:-pudding}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-pudding}
+      POSTGRES_DB: ${PG_DB:-source_db}
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+      - -c
+      - timezone=UTC
+    ports:
+      - "${PG_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d:ro
+      - ../../data/generated:/data:ro
+      - ../../data/seed:/data-seed:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks: [pudding]
+
+  mysql:
+    image: mysql:8.0
+    profiles: ["relational"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-pudding}
+      MYSQL_DATABASE: ${MYSQL_DB:-source_db}
+      MYSQL_USER: ${MYSQL_USER:-pudding}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-pudding}
+      TZ: UTC
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      # Empty disables the secure-file-priv directory check. The loader only reads
+      # the read-only /data mount; no server-side files are written.
+      - --secure-file-priv=
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init/mysql:/docker-entrypoint-initdb.d:ro
+      - ../../data/generated:/data:ro
+      - ../../data/seed:/data-seed:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    networks: [pudding]
+
+  mongo:
+    image: mongo:7.0
+    profiles: ["relational"]
+    command:
+      - mongod
+      - --port
+      - "27018"
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --wiredTigerCacheSizeGB
+      - "1"
+    ports:
+      - "${MONGO_PORT:-27018}:27018"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --port 27018 --quiet --eval 'db.adminCommand({ping:1}).ok' | grep -q 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
+    networks: [pudding]
+
+  kafka:
+    image: apache/kafka-native:3.8.0
+    profiles: ["streaming"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,INTERNAL://:29092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:${KAFKA_PORT:-19092},INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: "168"
+      TZ: UTC
+    ports:
+      - "${KAFKA_PORT:-19092}:9092"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9092' || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    networks: [pudding]
+
+  schema-registry:
+    # Confluent publishes amd64 images for this version. On Apple Silicon enable
+    # Docker Desktop's Rosetta emulation, or run Schema Registry as a host process.
+    image: confluentinc/cp-schema-registry:7.4.0
+    platform: linux/amd64
+    profiles: ["streaming"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+      # Schema Registry expects a security-protocol scheme here. The broker's
+      # INTERNAL listener is mapped to PLAINTEXT in KAFKA_LISTENER_SECURITY_PROTOCOL_MAP.
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+      SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR: 1
+      SCHEMA_REGISTRY_DEBUG: "true"
+    ports:
+      - "${SCHEMA_REGISTRY_PORT:-18081}:8081"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8081' || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    networks: [pudding]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.9.1
+    profiles: ["search"]
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      ES_JAVA_OPTS: ${ES_JAVA_OPTS:--Xms1g -Xmx1g}
+      TZ: UTC
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "${ES_PORT:-19200}:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    networks: [pudding]
+
+  minio:
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2023-09-04T19-57-37Z}
+    profiles: ["infra"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pudding}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pudding-secret}
+      TZ: UTC
+    ports:
+      - "${MINIO_PORT:-19000}:9000"
+      - "${MINIO_CONSOLE_PORT:-19001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks: [pudding]
+
+  minio-init:
+    image: ${MINIO_CLIENT_IMAGE:-minio/mc:RELEASE.2023-09-04T19-57-37Z}
+    profiles: ["infra"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pudding}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pudding-secret}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          sleep 2
+        done
+        mc mb -p local/pudding || true
+        mc anonymous set none local/pudding || true
+    restart: "no"
+    networks: [pudding]
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["infra"]
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT:-16379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [pudding]
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.15
+    profiles: ["infra"]
+    command:
+      - etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+    ports:
+      - "${ETCD_PORT:-12379}:2379"
+    volumes:
+      - etcd-data:/etcd-data
+    healthcheck:
+      # The etcd image has no shell, so this must be an exec-form check.
+      test: ["CMD", "etcdctl", "--endpoints=http://127.0.0.1:2379", "endpoint", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [pudding]
+
+  # Optional HDFS profile. The DataNode advertises 127.0.0.1:19866 so a Spark
+  # process on the host can read blocks through the published port.
+  namenode:
+    image: apache/hadoop:3.3.6
+    profiles: ["hdfs"]
+    command: ["hdfs", "namenode"]
+    environment:
+      ENSURE_NAMENODE_DIR: /tmp/hadoop-root/dfs/name
+      HADOOP_USER_NAME: hadoop
+      CORE-SITE.XML_fs.defaultFS: hdfs://namenode:8020
+      HDFS-SITE.XML_dfs.namenode.rpc-address: namenode:8020
+      HDFS-SITE.XML_dfs.namenode.name.dir: /tmp/hadoop-root/dfs/name
+      HDFS-SITE.XML_dfs.replication: "1"
+    ports:
+      - "${HDFS_NAMENODE_PORT:-18020}:8020"
+      - "${HDFS_NAMENODE_UI_PORT:-19870}:9870"
+    volumes:
+      - hdfs-name:/tmp/hadoop-root/dfs/name
+    healthcheck:
+      test: ["CMD-SHELL", "hdfs dfs -ls / >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    networks: [pudding]
+
+  datanode:
+    image: apache/hadoop:3.3.6
+    profiles: ["hdfs"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+    command: ["hdfs", "datanode"]
+    environment:
+      HADOOP_USER_NAME: hadoop
+      CORE-SITE.XML_fs.defaultFS: hdfs://namenode:8020
+      HDFS-SITE.XML_dfs.namenode.rpc-address: namenode:8020
+      HDFS-SITE.XML_dfs.replication: "1"
+      HDFS-SITE.XML_dfs.datanode.data.dir: /tmp/hadoop-root/dfs/data
+      HDFS-SITE.XML_dfs.datanode.address: 0.0.0.0:19866
+      HDFS-SITE.XML_dfs.datanode.hostname: 127.0.0.1
+    ports:
+      - "${HDFS_DATANODE_PORT:-19866}:19866"
+    volumes:
+      - hdfs-data:/tmp/hadoop-root/dfs/data
+    networks: [pudding]
+
+networks:
+  pudding:
+    name: pudding-test
+
+volumes:
+  postgres-data:
+  mysql-data:
+  mongo-data:
+  es-data:
+  minio-data:
+  redis-data:
+  etcd-data:
+  hdfs-name:
+  hdfs-data:

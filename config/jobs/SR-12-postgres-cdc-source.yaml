@@ -1,0 +1,38 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-12-postgres-cdc-source smoke
+  master: local[2]
+  deployMode: client
+  describe: postgres-cdc-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 10 seconds'
+source:
+- type: postgres-cdc-source
+  id: source-1
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    database: source_db
+    databaseSchema: public
+    table: orders_smoke
+    schema: order_id bigint, customer_id bigint, amount decimal(12,2), status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '1000'
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/cdc
+    fileType: json
+    isStreaming: true
+    outputMode: append
+    checkpointLocation: ${CASE_OUT}/checkpoint
+    checkpointRetention: keep

@@ -1,0 +1,52 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-06-invalid-op
+  master: local[2]
+  deployMode: client
+  describe: A streaming CDC batch with an unknown operation value must fail
+  trigger: available-now
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '2'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_ROOT}/results/state/ng-06/input
+    fileType: csv
+    streamRead: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+      op: string
+sink:
+- type: jdbc-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.ng06_orders
+    recordKeyFields:
+    - order_id
+    cdcOpColumn: op
+    # Ordering is present so the batch reaches op normalization; the invalid
+    # value must then fail the query instead of being silently dropped.
+    cdcOrderFields:
+    - updated_at
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/ng-06/checkpoint-invalid-op

@@ -1,0 +1,45 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-12b-iceberg-to-hudi
+  master: local[2]
+  deployMode: client
+  describe: sync Iceberg snapshots incrementally into a Hudi table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/iceberg
+source:
+- type: iceberg-source
+  id: source-1
+  config:
+    table: pudding_test.e2e12b_orders
+    catalog: iceberg_lake
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      statePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12b-sync
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    table: e2e12b_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12b/hudi/orders
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    mode: append

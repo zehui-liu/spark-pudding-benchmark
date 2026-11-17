@@ -1,0 +1,44 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: os-05-state-jdbc
+  master: local[2]
+  deployMode: client
+  describe: Incremental sync with the JDBC state backend
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '2'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: jdbc-source
+  id: os05_source
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.os05_orders
+    cursorField: updated_at
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      state:
+        backend: jdbc
+        url: jdbc:postgresql://localhost:${PG_PORT}/source_db
+        user: ${PG_USER}
+        password: ${PG_PASSWORD}
+        table: pudding_os05_state
+        lockTtlMs: 600000
+sink:
+- type: jdbc-sink
+  id: os05_target
+  dependency: os05_source
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.os05_orders

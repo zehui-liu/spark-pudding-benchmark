@@ -1,0 +1,39 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: os-03-hdfs-incremental-state
+  master: local[2]
+  deployMode: client
+  describe: PostgreSQL incremental upsert with filesystem state on HDFS
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '2'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.hadoop.dfs.client.use.datanode.hostname: 'true'
+source:
+- type: jdbc-source
+  id: os03_source
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.os05_orders
+    cursorField: updated_at
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      statePath: ${OS03_STATE_PATH}
+sink:
+- type: jdbc-sink
+  id: os03_target
+  dependency: os03_source
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.os03_orders

@@ -1,0 +1,50 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: os-01-s3a-checkpoint
+  master: local[2]
+  deployMode: client
+  describe: File streaming with an S3A checkpoint on MinIO and a local file sink
+  trigger: available-now
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '2'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.hadoop.fs.s3a.endpoint: ${MINIO_ENDPOINT}
+    spark.hadoop.fs.s3a.path.style.access: 'true'
+    spark.hadoop.fs.s3a.connection.ssl.enabled: 'false'
+    spark.hadoop.fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+    # The rendered job file only contains ${secret:file:...#key} references.
+    spark.hadoop.fs.s3a.access.key: ${OS_STATE_ACCESS_KEY_REF}
+    spark.hadoop.fs.s3a.secret.key: ${OS_STATE_SECRET_KEY_REF}
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${OS01_INPUT}
+    fileType: csv
+    streamRead: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${OS01_OUTPUT}
+    fileType: json
+    outputMode: append
+    checkpointLocation: ${OS01_CHECKPOINT}
+    checkpointRetention: keep

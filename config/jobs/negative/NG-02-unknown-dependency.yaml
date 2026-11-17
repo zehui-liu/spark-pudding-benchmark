@@ -1,0 +1,44 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-02-unknown-dependency
+  master: local[2]
+  deployMode: client
+  describe: transform references a component that does not exist
+  config:
+    spark.ui.enabled: 'false'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: filter-transform
+  id: filter-1
+  dependencies: [missing-component]
+  config:
+    condition: amount >= 0
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: filter-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

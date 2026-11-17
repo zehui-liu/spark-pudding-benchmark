@@ -1,0 +1,51 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-06-mysql-cdc-to-iceberg
+  master: local[2]
+  deployMode: client
+  describe: MySQL binlog CDC into an Iceberg table with MERGE
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.sql.extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+  trigger: 'processing-time: 5 seconds'
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/results/state/e2e-06/iceberg
+source:
+- type: mysql-cdc-source
+  id: source-1
+  config:
+    url: ${MYSQL_URL}
+    user: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    database: source_db
+    table: orders_smoke
+    schema: order_id bigint, customer_id bigint, amount decimal(12,2), status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '1000'
+    options:
+      database.allowPublicKeyRetrieval: 'true'
+sink:
+- type: iceberg-sink
+  id: sink-1
+  dependency: source-1
+  catalog: iceberg_lake
+  config:
+    table: pudding_test.e2e06_orders
+    recordKeyFields:
+    - order_id
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-06/iceberg-checkpoint
+    checkpointRetention: keep
+    cdcOpColumn: __op
+    cdcOrderFields:
+    - _cdc_timestamp
+    - _cdc_sequence

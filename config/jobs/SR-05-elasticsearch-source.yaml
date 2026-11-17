@@ -1,0 +1,32 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-05-elasticsearch-source smoke
+  master: local[2]
+  deployMode: client
+  describe: elasticsearch-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: elasticsearch-source
+  id: source-1
+  config:
+    esNodes: localhost
+    esPort: ${ES_PORT}
+    esIndex: orders
+    limit: 10000
+    scrollSize: 1000
+    options:
+      es.nodes.wan.only: 'true'
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite

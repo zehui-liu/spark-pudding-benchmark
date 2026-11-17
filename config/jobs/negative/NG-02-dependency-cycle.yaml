@@ -1,0 +1,50 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-02-dependency-cycle
+  master: local[2]
+  deployMode: client
+  describe: two transforms depend on each other
+  config:
+    spark.ui.enabled: 'false'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/e2e03_orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: filter-transform
+  id: filter-1
+  dependencies: [project-1]
+  config:
+    condition: amount >= 0
+- type: column-transform
+  id: project-1
+  dependencies: [filter-1]
+  config:
+    fields:
+    - order_id
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: filter-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

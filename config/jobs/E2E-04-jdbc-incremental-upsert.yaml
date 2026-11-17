@@ -1,0 +1,39 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-04-jdbc-incremental-upsert
+  master: local[2]
+  deployMode: client
+  describe: PostgreSQL cursor incremental upsert into PostgreSQL
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: jdbc-source
+  id: orders_source
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.orders_smoke
+    cursorField: updated_at
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      # Kept outside results/runs/E2E-04 so the second run resumes.
+      statePath: ${PUDDING_TEST_ROOT}/results/state/e2e-04
+sink:
+- type: jdbc-sink
+  id: orders_target
+  dependency: orders_source
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.e2e04_orders

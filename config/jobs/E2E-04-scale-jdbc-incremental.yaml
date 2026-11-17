@@ -1,0 +1,42 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-04-scale-jdbc-incremental-upsert
+  master: local[2]
+  deployMode: client
+  describe: 10M-row PostgreSQL cursor incremental upsert into PostgreSQL
+  config:
+    spark.ui.enabled: 'false'
+    # 10M-row dedup window: more partitions and a larger driver heap (local mode
+    # runs the executor in the driver JVM; 2g OOMed in the first scale attempt).
+    spark.sql.shuffle.partitions: '32'
+    # AQE coalesced the staging write back to one task in the first attempts.
+    spark.sql.adaptive.enabled: 'false'
+    spark.driver.memory: 8g
+    spark.driver.cores: '2'
+source:
+- type: jdbc-source
+  id: orders_source
+  config:
+    url: ${PG_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.orders
+    cursorField: updated_at
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      statePath: ${PUDDING_TEST_ROOT}/results/state/e2e-04-scale
+sink:
+- type: jdbc-sink
+  id: orders_target
+  dependency: orders_source
+  config:
+    url: ${PG_TARGET_URL}
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    table: public.e2e04_scale_orders

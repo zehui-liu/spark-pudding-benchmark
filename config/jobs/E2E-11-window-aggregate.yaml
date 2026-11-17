@@ -1,0 +1,52 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-11-window-aggregate
+  master: local[2]
+  deployMode: client
+  describe: Kafka event-time window aggregate with a watermark
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 2 seconds'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-window-smoke
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      city: string
+      amount: double
+      order_time: timestamp
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '5000'
+transform:
+- type: aggregate-transform
+  id: windowed
+  dependencies: [source-1]
+  config:
+    eventTime: order_time
+    watermark: 1 minute
+    window: 5 minutes
+    groupBy: [city]
+    aggregations:
+      order_count: count(*)
+      total_amount: sum(amount)
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: windowed
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    isStreaming: true
+    outputMode: append
+    checkpointLocation: ${CASE_OUT}/checkpoint
+    checkpointRetention: keep

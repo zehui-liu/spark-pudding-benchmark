@@ -1,0 +1,26 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-03-streaming-hive-source
+  master: local[2]
+  deployMode: client
+  describe: Hive source does not support streaming execution
+  config:
+    spark.ui.enabled: 'false'
+  trigger: 'processing-time: 5 seconds'
+source:
+- type: hive-source
+  id: source-1
+  config:
+    table: default.pudding_orders_hive
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    isStreaming: true
+    outputMode: append
+    checkpointLocation: ${CASE_OUT}/checkpoint

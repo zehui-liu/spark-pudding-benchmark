@@ -1,0 +1,49 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-11-dedup
+  master: local[2]
+  deployMode: client
+  describe: Kafka streaming dedup with a watermark
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 2 seconds'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-dedup-smoke
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      city: string
+      amount: double
+      order_time: timestamp
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '5000'
+transform:
+- type: dedup-transform
+  id: deduped
+  dependencies: [source-1]
+  config:
+    keys:
+    - order_id
+    eventTime: order_time
+    watermark: 1 hour
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: deduped
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    isStreaming: true
+    outputMode: append
+    checkpointLocation: ${CASE_OUT}/checkpoint
+    checkpointRetention: keep

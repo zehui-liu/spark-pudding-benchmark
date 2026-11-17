@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "org.pudding.test",
+  "fields": [
+    {"name": "order_id", "type": "long"},
+    {"name": "customer_id", "type": "long"},
+    {"name": "amount", "type": "double"},
+    {"name": "status", "type": "string"},
+    {"name": "city", "type": "string"},
+    {"name": "order_time", "type": "string"},
+    {"name": "updated_at", "type": "string"},
+    {"name": "payload", "type": "string"}
+  ]
+}

@@ -1,0 +1,30 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-03-mysql-source smoke
+  master: local[2]
+  deployMode: client
+  describe: mysql-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: mysql-source
+  id: source-1
+  config:
+    url: ${MYSQL_URL}
+    table: (SELECT * FROM orders LIMIT 10000) AS smoke_orders
+    user: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+    driver: com.mysql.cj.jdbc.Driver
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite

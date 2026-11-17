@@ -1,0 +1,53 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-12a-build-hudi
+  master: local[2]
+  deployMode: client
+  describe: build a 1,000-row Hudi table for the incremental sync case
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+source:
+- type: file-common-source
+  id: orders
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: limit-transform
+  id: first_rows
+  dependencies: [orders]
+  config:
+    limit: 1000
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: first_rows
+  config:
+    table: e2e12a_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12a/hudi/orders
+    operation: bulk_insert
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    mode: append

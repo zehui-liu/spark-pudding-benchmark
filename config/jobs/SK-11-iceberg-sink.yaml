@@ -1,0 +1,47 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sk-11-iceberg-sink smoke
+  master: local[2]
+  deployMode: client
+  describe: iceberg-sink smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/iceberg
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: iceberg-sink
+  id: sink-1
+  dependency: source-1
+  catalog: iceberg_lake
+  config:
+    table: pudding_test.sk11_orders
+    mode: append

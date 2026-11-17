@@ -1,0 +1,87 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-11-stream-self-join
+  master: local[2]
+  deployMode: client
+  describe: Self stream-stream join with event-time watermarks and a checkpoint
+  trigger: available-now
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-join
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '100'
+transform:
+- type: filter-transform
+  id: left-paid
+  dependencies: [source-1]
+  config:
+    condition: status = 'PAID'
+    numPartitions: 1
+- type: column-transform
+  id: left-projected
+  dependencies: [left-paid]
+  config:
+    fields:
+    - order_id
+    - amount
+    - order_time
+    - payload
+- type: filter-transform
+  id: right-paid
+  dependencies: [source-1]
+  config:
+    condition: status = 'PAID'
+    numPartitions: 1
+- type: column-transform
+  id: right-projected
+  dependencies: [right-paid]
+  config:
+    fields:
+    - order_id
+    - customer_id
+    - status
+    - updated_at
+- type: join-transform
+  id: joined
+  dependencies: [left-projected, right-projected]
+  config:
+    left: left-projected
+    right: right-projected
+    on:
+      order_id: order_id
+    joinType: inner
+    leftEventTime: order_time
+    rightEventTime: updated_at
+    leftWatermark: '1 minute'
+    rightWatermark: '1 minute'
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: joined
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    outputMode: append
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-11-join/checkpoint
+    checkpointRetention: keep

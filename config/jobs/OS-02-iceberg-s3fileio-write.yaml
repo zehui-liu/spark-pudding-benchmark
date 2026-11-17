@@ -1,0 +1,67 @@
+job:
+  mode: sync
+  strategy: full
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: os-02-iceberg-s3fileio-write
+  master: local[2]
+  deployMode: client
+  describe: Iceberg JDBC catalog with S3FileIO data files in MinIO
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '2'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    # The AWS SDK needs a region even for a path-style MinIO endpoint.
+    spark.driver.extraJavaOptions: -Daws.region=us-east-1
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: limit-transform
+  id: limit-rows
+  dependencies:
+  - source-1
+  config:
+    limit: 1000
+catalog:
+- name: iceberg_s3
+  type: iceberg
+  properties:
+    type: jdbc
+    uri: jdbc:postgresql://localhost:15432/iceberg_catalog
+    jdbc.user: ${OS_CATALOG_USER_REF}
+    jdbc.password: ${OS_CATALOG_PASSWORD_REF}
+    jdbc.schema-version: V1
+    warehouse: ${OS02_WAREHOUSE}
+    io-impl: org.apache.iceberg.aws.s3.S3FileIO
+    s3.endpoint: ${MINIO_ENDPOINT}
+    s3.path-style-access: 'true'
+    # S3FileIO uses these credentials. They are independent of the S3A
+    # credentials used for checkpoints and incremental state.
+    s3.access-key-id: ${OS_LAKE_ACCESS_KEY_REF}
+    s3.secret-access-key: ${OS_LAKE_SECRET_KEY_REF}
+sink:
+- type: iceberg-sink
+  id: sink-1
+  dependency: limit-rows
+  config:
+    table: ${OS02_TABLE}
+  catalog: iceberg_s3

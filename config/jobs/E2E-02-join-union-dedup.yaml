@@ -1,0 +1,106 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-02-join-union-dedup
+  master: local[2]
+  deployMode: client
+  describe: orders union of complementary filters, join customers, dedup
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: orders
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+- type: file-common-source
+  id: customers
+  config:
+    path: ${PUDDING_TEST_DATA}/customers.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      customer_id: long
+      name: string
+      city: string
+      segment: string
+      updated_at: timestamp
+      payload: string
+transform:
+- type: filter-transform
+  id: high_amount
+  dependencies: [orders]
+  config:
+    condition: amount >= 500
+    numPartitions: 2
+- type: filter-transform
+  id: low_amount
+  dependencies: [orders]
+  config:
+    condition: amount < 500
+    numPartitions: 2
+- type: union-transform
+  id: all_orders
+  dependencies: [high_amount, low_amount]
+  config:
+    inputs:
+    - high_amount
+    - low_amount
+    mode: byName
+    distinct: false
+- type: join-transform
+  id: enriched
+  dependencies: [all_orders, customers]
+  config:
+    left: all_orders
+    right: customers
+    joinType: inner
+    'on':
+    - customer_id
+- type: column-transform
+  id: projected
+  dependencies: [enriched]
+  config:
+    fields:
+    - order_id
+    - customer_id
+    - amount
+    - status
+    - name
+    - segment
+- type: dedup-transform
+  id: deduped
+  dependencies: [projected]
+  config:
+    keys:
+    - order_id
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: deduped
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

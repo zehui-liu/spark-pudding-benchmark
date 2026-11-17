@@ -1,0 +1,41 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: ng-04-invalid-output-mode
+  master: local[2]
+  deployMode: client
+  describe: file sink rejects an unknown streaming outputMode
+  config:
+    spark.ui.enabled: 'false'
+  trigger: 'processing-time: 5 seconds'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}
+    fileType: csv
+    streamRead: true
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    isStreaming: true
+    outputMode: bogus
+    checkpointLocation: ${CASE_OUT}/checkpoint

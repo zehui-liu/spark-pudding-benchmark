@@ -1,0 +1,66 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-09-kafka-to-hudi-scale
+  master: local[2]
+  deployMode: client
+  describe: 10M-row Kafka JSON ingest into Hudi with a bulk-insert sink
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '8'
+    spark.driver.memory: 8g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+  trigger: 'processing-time: 10 seconds'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-scale
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '500000'
+transform:
+- type: column-transform
+  id: projected
+  dependencies: [source-1]
+  config:
+    fields:
+    - order_id
+    - customer_id
+    - amount
+    - status
+    - city
+    - order_time
+    - updated_at
+    - payload
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: projected
+  config:
+    table: e2e09_scale_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-09-scale/hudi/orders
+    operation: bulk_insert
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    outputMode: append
+    mode: append
+    options:
+      hoodie.write.markers.type: DIRECT
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-09-scale/checkpoint
+    checkpointRetention: keep

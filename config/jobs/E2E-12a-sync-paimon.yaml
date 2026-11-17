@@ -1,0 +1,36 @@
+job:
+  mode: sync
+  strategy: incremental
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-12a-hudi-to-paimon
+  master: local[2]
+  deployMode: client
+  describe: sync Hudi commits incrementally into a Paimon primary-key table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+source:
+- type: hudi-source
+  id: source-1
+  config:
+    table: e2e12a_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12a/hudi/orders
+    incremental:
+      semantics: upsert
+      keyFields:
+      - order_id
+      initial: full
+      statePath: ${PUDDING_TEST_ROOT}/results/state/e2e-12a-sync
+sink:
+- type: paimon-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${PUDDING_TEST_ROOT}/results/state/e2e-12a/paimon/pudding_test.db/e2e12a_orders
+    primaryKey:
+    - order_id
+    bucket: 1

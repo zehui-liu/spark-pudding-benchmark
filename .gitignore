@@ -1,0 +1,46 @@
+# Generated 2 GiB datasets
+data/generated/*
+!data/generated/.gitkeep
+
+# Local Hive metastore and warehouse
+data/hive/
+
+# Per-run artifacts
+results/runs/*
+!results/runs/.gitkeep
+
+# Scale reports are reproducible
+results/data-scale/*
+!results/data-scale/.gitkeep
+!results/data-scale/README*.md
+
+# Scratch
+tmp/*
+!tmp/.gitkeep
+
+# Local secrets and rendered environment files
+config/docker/.env
+config/env/*.local
+config/env/*.properties
+!config/env/*.example.properties
+config/docker/*.local
+*.pem
+*.key
+
+# Generated benchmark state and reports
+results/state/
+results/bench/*/
+!results/bench/README.md
+!results/bench/baseline-*.md
+results/bench/benchmark-report*.md
+
+# Local runtime artifacts
+derby.log
+spark-warehouse/
+**/.DS_Store
+
+# OS
+.DS_Store
+
+# Local Python environment
+.venv/

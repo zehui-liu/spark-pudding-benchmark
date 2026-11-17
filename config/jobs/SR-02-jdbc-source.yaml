@@ -1,0 +1,32 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-02-jdbc-source smoke
+  master: local[2]
+  deployMode: client
+  describe: jdbc-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: jdbc-source
+  id: source-1
+  config:
+    url: ${PG_URL}
+    table: (SELECT * FROM public.orders LIMIT 10000) AS smoke_orders
+    user: ${PG_USER}
+    password: ${PG_PASSWORD}
+    driver: org.postgresql.Driver
+    options:
+      fetchsize: '1000'
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/source
+    fileType: json
+    saveMode: overwrite

@@ -1,0 +1,72 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: tr-03-transform smoke
+  master: local[2]
+  deployMode: client
+  describe: transform smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+source:
+- type: file-common-source
+  id: source-1
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+- type: file-common-source
+  id: source-2
+  config:
+    path: ${PUDDING_TEST_DATA}/orders.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+transform:
+- type: union-transform
+  id: union1
+  dependencies:
+  - source-1
+  - source-2
+  config:
+    inputs:
+    - source-1
+    - source-2
+    mode: byName
+    distinct: false
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: union1
+  config:
+    path: ${CASE_OUT}/result
+    fileType: json
+    saveMode: overwrite

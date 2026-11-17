@@ -1,0 +1,10 @@
+{"order_id":1,"customer_id":1,"amount":10.0,"status":"PAID","city":"shanghai","order_time":"2026-01-01T00:00:01Z","updated_at":"2026-01-01T00:00:01Z","payload":"join-1"}
+{"order_id":2,"customer_id":2,"amount":20.0,"status":"PENDING","city":"beijing","order_time":"2026-01-01T00:00:02Z","updated_at":"2026-01-01T00:00:02Z","payload":"join-2"}
+{"order_id":3,"customer_id":3,"amount":30.0,"status":"PAID","city":"shenzhen","order_time":"2026-01-01T00:00:03Z","updated_at":"2026-01-01T00:00:03Z","payload":"join-3"}
+{"order_id":4,"customer_id":4,"amount":40.0,"status":"PENDING","city":"hangzhou","order_time":"2026-01-01T00:00:04Z","updated_at":"2026-01-01T00:00:04Z","payload":"join-4"}
+{"order_id":5,"customer_id":5,"amount":50.0,"status":"PAID","city":"chengdu","order_time":"2026-01-01T00:00:05Z","updated_at":"2026-01-01T00:00:05Z","payload":"join-5"}
+{"order_id":6,"customer_id":6,"amount":60.0,"status":"PENDING","city":"wuhan","order_time":"2026-01-01T00:00:06Z","updated_at":"2026-01-01T00:00:06Z","payload":"join-6"}
+{"order_id":7,"customer_id":7,"amount":70.0,"status":"PAID","city":"xian","order_time":"2026-01-01T00:00:07Z","updated_at":"2026-01-01T00:00:07Z","payload":"join-7"}
+{"order_id":8,"customer_id":8,"amount":80.0,"status":"PENDING","city":"nanjing","order_time":"2026-01-01T00:00:08Z","updated_at":"2026-01-01T00:00:08Z","payload":"join-8"}
+{"order_id":9,"customer_id":9,"amount":90.0,"status":"PAID","city":"qingdao","order_time":"2026-01-01T00:00:09Z","updated_at":"2026-01-01T00:00:09Z","payload":"join-9"}
+{"order_id":10,"customer_id":10,"amount":100.0,"status":"PENDING","city":"dalian","order_time":"2026-01-01T00:00:10Z","updated_at":"2026-01-01T00:00:10Z","payload":"join-10"}

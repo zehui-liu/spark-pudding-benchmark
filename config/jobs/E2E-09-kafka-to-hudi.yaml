@@ -1,0 +1,66 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-09-kafka-to-hudi
+  master: local[2]
+  deployMode: client
+  describe: Kafka JSON to filtered projection into a Hudi upsert table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+    spark.serializer: org.apache.spark.serializer.KryoSerializer
+  trigger: 'processing-time: 5 seconds'
+source:
+- type: kafka-source
+  id: source-1
+  config:
+    kafkaBootstrapServers: ${KAFKA_BOOTSTRAP}
+    subscribe: orders-smoke
+    valueFormat: json
+    valueSchema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+    options:
+      startingOffsets: earliest
+      maxOffsetsPerTrigger: '5000'
+transform:
+- type: filter-transform
+  id: expensive_orders
+  dependencies: [source-1]
+  config:
+    condition: amount >= 100
+    numPartitions: 2
+- type: column-transform
+  id: projected
+  dependencies: [expensive_orders]
+  config:
+    fields:
+    - order_id
+    - amount
+    - city
+    - updated_at
+    - payload
+sink:
+- type: hudi-sink
+  id: sink-1
+  dependency: projected
+  config:
+    table: e2e09_orders
+    tablePath: ${PUDDING_TEST_ROOT}/results/state/e2e-09/hudi/orders
+    operation: upsert
+    tableType: COPY_ON_WRITE
+    recordKeyFields:
+    - order_id
+    preCombineField: updated_at
+    outputMode: update
+    checkpointLocation: ${PUDDING_TEST_ROOT}/results/state/e2e-09/checkpoint
+    checkpointRetention: keep

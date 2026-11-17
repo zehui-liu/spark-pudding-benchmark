@@ -1,0 +1,35 @@
+job:
+  mode: streaming
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: sr-13-mongodb-cdc-source smoke
+  master: local[2]
+  deployMode: client
+  describe: mongodb-cdc-source smoke
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+  trigger: 'processing-time: 2 seconds'
+source:
+- type: mongodb-cdc-source
+  id: source-1
+  config:
+    uri: ${MONGO_URI}
+    database: source_db
+    collection: orders_smoke
+    schema: _id string, order_id bigint, customer_id bigint, amount double, status string, city string, order_time timestamp, updated_at timestamp, payload string
+    snapshotMode: initial
+    maxRecordsPerBatch: '2000'
+sink:
+- type: file-sink
+  id: sink-1
+  dependency: source-1
+  config:
+    path: ${CASE_OUT}/cdc
+    fileType: json
+    isStreaming: true
+    outputMode: append
+    checkpointLocation: ${CASE_OUT}/checkpoint
+    checkpointRetention: keep

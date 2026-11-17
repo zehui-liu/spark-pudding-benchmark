@@ -1,0 +1,47 @@
+job:
+  mode: batch
+  sparkHome: ${SPARK_HOME}
+  sparkPuddingHome: ${PUDDING_HOME}
+  appName: e2e-12b-delta-iceberg
+  master: local[2]
+  deployMode: client
+  describe: append two rows to the Iceberg source table
+  config:
+    spark.ui.enabled: 'false'
+    spark.sql.shuffle.partitions: '4'
+    spark.driver.memory: 2g
+    spark.driver.cores: '2'
+catalog:
+- name: iceberg_lake
+  type: iceberg
+  properties:
+    type: hadoop
+    warehouse: ${PUDDING_TEST_ROOT}/data/generated/lakehouse/iceberg
+source:
+- type: file-common-source
+  id: delta
+  config:
+    path: ${PUDDING_TEST_DATA}/e2e12b_delta.csv
+    fileType: csv
+    streamRead: false
+    forceConvertSchema: true
+    options:
+      header: 'true'
+      delimiter: ','
+    schema:
+      order_id: long
+      customer_id: long
+      amount: double
+      status: string
+      city: string
+      order_time: timestamp
+      updated_at: timestamp
+      payload: string
+sink:
+- type: iceberg-sink
+  id: sink-1
+  dependency: delta
+  catalog: iceberg_lake
+  config:
+    table: pudding_test.e2e12b_orders
+    mode: append
