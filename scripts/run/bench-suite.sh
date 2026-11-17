@@ -130,6 +130,17 @@ ensure_venv() {
   fi
 }
 
+ensure_seed() {
+  local missing=0
+  for file in orders.csv customers.csv payments.csv orders.jsonl customers.jsonl payments.jsonl; do
+    [[ -s "$ROOT/data/seed/$file" ]] || missing=1
+  done
+  if [[ "$missing" == "1" ]]; then
+    run python3 "$ROOT/scripts/data-gen/01_generate_tables.py" \
+      --profile smoke --out "$ROOT/data/seed" --formats csv,jsonl --force
+  fi
+}
+
 preflight() {
   PHASE="preflight"
   ensure_env
@@ -156,9 +167,9 @@ preflight() {
       fail "distribution version '$dist_version' does not match benchmark version '$VERSION'"
   fi
 
-  for file in orders customers payments; do
-    [[ -s "$ROOT/data/seed/$file.csv" ]] || fail "missing seed data: data/seed/$file.csv"
-  done
+  if [[ ! -s "$ROOT/data/seed/orders.csv" ]]; then
+    log "seed data is not present; the smoke phase will generate it"
+  fi
 
   free_gb="$(df -Pk "$ROOT" | awk 'NR==2 {printf "%d", $4/1024/1024}')"
   log "free disk: ${free_gb} GiB"
@@ -172,6 +183,7 @@ smoke() {
   PHASE="smoke"
   ensure_env
   ensure_venv
+  ensure_seed
 
   run "$ROOT/scripts/run/run-smoke-suite.sh" file-basic smoke
 

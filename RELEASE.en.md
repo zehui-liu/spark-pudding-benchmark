@@ -315,11 +315,14 @@ cd /path/to/spark-pudding-benchmark
 scripts/services/up.sh relational
 
 python3 scripts/data-gen/01_generate_tables.py \
-  --profile smoke --out data/generated --formats csv,jsonl --force
-scripts/data-gen/03_load_postgres.sh
-scripts/data-gen/04_load_mysql.sh
+  --profile smoke --out data/seed --formats csv,jsonl --force
+PUDDING_DATA_DIR="$PWD/data/seed" PUDDING_DATA_CONTAINER_DIR=/data-seed \
+  scripts/data-gen/03_load_postgres.sh
+PUDDING_DATA_DIR="$PWD/data/seed" PUDDING_DATA_CONTAINER_DIR=/data-seed \
+  scripts/data-gen/04_load_mysql.sh
 
-scripts/run/run-smoke-suite.sh
+scripts/run/run-smoke-suite.sh file-basic smoke
+scripts/run/run-smoke-suite.sh relational smoke
 scripts/run/run-case.sh E2E-01 --dataset smoke
 
 scripts/services/down.sh relational

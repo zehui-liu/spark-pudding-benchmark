@@ -51,7 +51,7 @@ spark-pudding  v1.0.0
 scripts/run/bench-suite.sh all
 ```
 
-也可以分阶段执行：
+首次运行会自动生成 `data/seed`（固定 seed，可重复）。也可以分阶段执行：
 
 ```bash
 scripts/run/bench-suite.sh preflight   # 环境、版本、磁盘检查
@@ -121,7 +121,7 @@ own-code/
 | `config/env/` | `env.properties` 和 JDBC/Redis/etcd state 后端模板 |
 | `config/jobs/` | 93 个 job 模板，覆盖 E2E、OS、SR、SK、RG、NG 用例；由 `scripts/run/generate_jobs.py` 生成 |
 | `config/schemas/` | Avro、Protobuf schema |
-| `data/seed/` | 确定性小数据集，用于 smoke 用例 |
+| `data/seed/` | 确定性 smoke 数据；大文件由脚本生成，仅提交小型 e2e fixture |
 | `data/generated/` | smoke/scale 生成数据；scale 三张主表各 ≥ 1 GiB，可重建，不提交 |
 | `scripts/data-gen/` | 数据生成、Postgres/MySQL/Mongo/Kafka/ES/湖仓加载、规模校验 |
 | `scripts/services/` | Compose profile 启停、健康检查、数据重置 |
@@ -214,7 +214,14 @@ scripts/services/up.sh streaming
 
 ### 5. 加载 smoke 数据
 
-`data/seed` 已包含确定性 smoke 数据：
+`data/seed` 的大文件不进入 Git；首次使用时生成（固定 seed 42，100,000 行）：
+
+```bash
+python3 scripts/data-gen/01_generate_tables.py \
+  --profile smoke --out data/seed --formats csv,jsonl --force
+```
+
+然后加载：
 
 ```bash
 scripts/services/up.sh relational

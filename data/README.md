@@ -4,8 +4,10 @@
 
 测试数据目录：
 
-- `seed/`：小规模、确定性、可提交的种子数据（smoke 档，默认 10 万行）。
-  可用 `01_generate_tables.py --profile smoke --out data/seed --force` 重建。
+- `seed/`：确定性 smoke 数据（默认 10 万行）。`orders`、`customers`、`payments`
+  的 CSV/JSONL 大文件不提交，首次使用时用
+  `01_generate_tables.py --profile smoke --out data/seed --force` 生成；
+  `e2e03`、`e2e11`、`e2e12` 等小型 fixture 仍然提交。
 - `generated/`：1 GiB 规模数据（scale 档），由 `scripts/data-gen/` 生成，可随时重建，
   不提交仓库。
 

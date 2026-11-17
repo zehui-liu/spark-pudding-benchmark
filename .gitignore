@@ -2,6 +2,14 @@
 data/generated/*
 !data/generated/.gitkeep
 
+# Generated smoke data; keep only the small hand-written fixtures
+data/seed/*
+!data/seed/.gitkeep
+!data/seed/e2e03_orders.csv
+!data/seed/e2e11_join.jsonl
+!data/seed/e2e12_delta.csv
+!data/seed/e2e12b_delta.csv
+
 # Local Hive metastore and warehouse
 data/hive/
 
