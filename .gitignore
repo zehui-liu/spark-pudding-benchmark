@@ -44,3 +44,5 @@ spark-warehouse/
 
 # Local Python environment
 .venv/
+__pycache__/
+*.pyc
